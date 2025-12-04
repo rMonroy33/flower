@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Rosa en Flor 🌹</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            min-height: 100dvh; /* Dynamic viewport height for mobile */
+            background: radial-gradient(ellipse at center, #FFF5F5 0%, #FFE5E5 50%, #F8E8E8 100%);
+            font-family: 'Cormorant Garamond', serif;
+            overflow: hidden;
+            position: relative;
+            padding: 10px;
+        }
+
+        /* Decorative background elements */
+        body::after {
+            content: '';
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            background-image: 
+                radial-gradient(circle at 20% 30%, rgba(255, 182, 193, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 70%, rgba(255, 192, 203, 0.12) 0%, transparent 50%),
+                radial-gradient(circle at 50% 90%, rgba(255, 218, 224, 0.1) 0%, transparent 40%),
+                radial-gradient(circle at 10% 80%, rgba(255, 228, 225, 0.08) 0%, transparent 35%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        #container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: clamp(15px, 4vw, 30px);
+            z-index: 1;
+            width: 100%;
+            max-width: 100%;
+        }
+
+        canvas {
+            display: block;
+            filter: drop-shadow(0 10px 25px rgba(0, 0, 0, 0.12));
+            max-width: 100%;
+            max-height: 70vh;
+            max-height: 70dvh;
+            width: auto;
+            height: auto;
+            touch-action: none;
+        }
+
+        #message {
+            font-size: clamp(20px, 5vw, 36px);
+            font-weight: 300;
+            color: #B71C1C;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 2s ease-in-out;
+            pointer-events: none;
+            text-shadow: 0 2px 10px rgba(214, 40, 40, 0.2);
+            padding: 15px 20px;
+            max-width: 95%;
+            letter-spacing: 0.5px;
+            line-height: 1.4;
+        }
+
+        #message.show {
+            opacity: 1;
+        }
+
+        /* Vignette overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(ellipse at center, transparent 0%, rgba(0,0,0,0.03) 100%);
+            pointer-events: none;
+        }
+
+        /* Mobile optimizations */
+        @media screen and (max-width: 768px) {
+            body {
+                padding: 5px;
+            }
+            
+            #container {
+                gap: 15px;
+            }
+            
+            canvas {
+                filter: drop-shadow(0 5px 15px rgba(0, 0, 0, 0.1));
+            }
+            
+            #message {
+                font-size: clamp(18px, 6vw, 28px);
+                padding: 10px 15px;
+            }
+        }
+
+        /* Extra small devices */
+        @media screen and (max-width: 480px) {
+            #message {
+                font-size: clamp(16px, 7vw, 24px);
+            }
+        }
+
+        /* Landscape mobile */
+        @media screen and (max-height: 500px) and (orientation: landscape) {
+            body {
+                padding: 5px;
+            }
+            
+            #container {
+                flex-direction: row;
+                gap: 20px;
+            }
+            
+            canvas {
+                max-height: 85vh;
+                max-height: 85dvh;
+            }
+            
+            #message {
+                max-width: 40%;
+                font-size: clamp(14px, 3vw, 20px);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <canvas id="roseCanvas"></canvas>
+        <div id="message">Una flor tan hermosa como tú ❤️</div>
+    </div>
+
+    <script>
+        // ============================================
+        // CONFIGURATION & SETUP
+        // ============================================
+        
+        const canvas = document.getElementById('roseCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Background decorative elements - pink sparkles
+        let sparkles = [];
+        
+        // Responsive canvas sizing
+        function resizeCanvas() {
+            const isPortrait = window.innerHeight > window.innerWidth;
+            const isMobile = window.innerWidth <= 768;
+            
+            let size;
+            if (isMobile) {
+                // Mobile: use smaller size relative to screen
+                size = Math.min(
+                    window.innerWidth * 0.95,
+                    window.innerHeight * 0.55,
+                    500
+                );
+            } else {
+                // Desktop: original sizing
+                size = Math.min(
+                    window.innerWidth * 0.9,
+                    window.innerHeight * 0.7,
+                    700
+                );
+            }
+            
+            canvas.width = size;
+            canvas.height = size;
+            
+            // Recreate sparkles with new canvas size
+            sparkles = [];
+            for (let i = 0; i < (isMobile ? 15 : 25); i++) {
+                sparkles.push({
+                    x: Math.random() * size,
+                    y: Math.random() * size,
+                    size: Math.random() * 2 + 1,
+                    opacity: Math.random() * 0.6 + 0.2,
+                    twinkleSpeed: Math.random() * 0.02 + 0.01,
+                    twinklePhase: Math.random() * Math.PI * 2
+                });
+            }
+            
+            return size;
+        }
+        
+        let canvasSize = resizeCanvas();
+        
+        // Debounced resize handler
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                canvasSize = resizeCanvas();
+            }, 250);
+        });
+        
+        // Handle orientation change on mobile
+        window.addEventListener('orientationchange', () => {
+            setTimeout(() => {
+                canvasSize = resizeCanvas();
+            }, 300);
+        });
+
+        // Enhanced color palette with gradients - Deep red rose
+        const colors = {
+            petal: {
+                dark: '#8B0000',      // Dark red
+                mid: '#C41E3A',       // Ruby red
+                light: '#DC143C',     // Crimson
+                highlight: '#FF6B7A'  // Soft pink highlight
+            },
+            leaf: {
+                dark: '#2D5016',
+                light: '#4A7C2C'
+            },
+            stem: '#1B3A1A',
+            background: 'transparent',
+            glow: 'rgba(196, 30, 58, 0.4)'
+        };
+
+        // Animation state
+        let time = 0;
+        const totalDuration = 180; // frames (3 seconds at 60fps)
+        let animationComplete = false;
+        let glowPulse = 0;
+        let shinePosition = 0;
+
+        // ============================================
+        // EASING FUNCTIONS
+        // ============================================
+        
+        function easeOutQuad(t) {
+            return t * (2 - t);
+        }
+
+        function easeInOutCubic(t) {
+            return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        }
+
+        function easeOutElastic(t) {
+            const c4 = (2 * Math.PI) / 3;
+            return t === 0 ? 0 : t === 1 ? 1 : 
+                Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1;
+        }
+
+        function easeOutBack(t) {
+            const c1 = 1.70158;
+            const c3 = c1 + 1;
+            return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+        }
+
+        // ============================================
+        // GRADIENT CREATION UTILITIES
+        // ============================================
+        
+        function createPetalGradient(x, y, angle, length) {
+            const gradient = ctx.createLinearGradient(
+                x,
+                y,
+                x + Math.cos(angle) * length,
+                y + Math.sin(angle) * length
+            );
+            gradient.addColorStop(0, colors.petal.dark);
+            gradient.addColorStop(0.4, colors.petal.mid);
+            gradient.addColorStop(0.8, colors.petal.light);
+            gradient.addColorStop(1, colors.petal.highlight);
+            return gradient;
+        }
+
+        function createLeafGradient(x, y, length) {
+            const gradient = ctx.createLinearGradient(x - length/2, y, x + length/2, y);
+            gradient.addColorStop(0, colors.leaf.dark);
+            gradient.addColorStop(0.5, colors.leaf.light);
+            gradient.addColorStop(1, colors.leaf.dark);
+            return gradient;
+        }
+
+        // ============================================
+        // DRAWING FUNCTIONS
+        // ============================================
+        
+        /**
+         * Draw the stem with smooth curve and gradient
+         */
+        function drawStem(progress) {
+            const centerX = canvasSize / 2;
+            const startY = canvasSize * 0.95;
+            const endY = canvasSize * 0.45;
+            const height = startY - endY;
+            const currentHeight = height * easeOutQuad(progress);
+            
+            // Stem gradient - darker greens
+            const gradient = ctx.createLinearGradient(centerX, startY, centerX, startY - currentHeight);
+            gradient.addColorStop(0, '#1B3A1A');
+            gradient.addColorStop(0.5, '#2D5016');
+            gradient.addColorStop(1, '#3A6B28');
+            
+            ctx.strokeStyle = gradient;
+            ctx.lineWidth = canvasSize * 0.014;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            
+            // Draw curved stem
+            ctx.beginPath();
+            ctx.moveTo(centerX, startY);
+            
+            for (let i = 0; i <= currentHeight; i += 2) {
+                const t = i / height;
+                const x = centerX + Math.sin(t * Math.PI * 2) * (canvasSize * 0.008);
+                const y = startY - i;
+                ctx.lineTo(x, y);
+            }
+            
+            ctx.stroke();
+            
+            // Black outline on stem
+            ctx.strokeStyle = '#1a1a1a';
+            ctx.lineWidth = canvasSize * 0.003;
+            ctx.beginPath();
+            ctx.moveTo(centerX - canvasSize * 0.007, startY);
+            
+            for (let i = 0; i <= currentHeight; i += 2) {
+                const t = i / height;
+                const x = centerX + Math.sin(t * Math.PI * 2) * (canvasSize * 0.008) - canvasSize * 0.007;
+                const y = startY - i;
+                ctx.lineTo(x, y);
+            }
+            
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(centerX + canvasSize * 0.007, startY);
+            
+            for (let i = 0; i <= currentHeight; i += 2) {
+                const t = i / height;
+                const x = centerX + Math.sin(t * Math.PI * 2) * (canvasSize * 0.008) + canvasSize * 0.007;
+                const y = startY - i;
+                ctx.lineTo(x, y);
+            }
+            
+            ctx.stroke();
+            
+            // Highlight on stem
+            ctx.strokeStyle = 'rgba(90, 150, 70, 0.4)';
+            ctx.lineWidth = canvasSize * 0.004;
+            ctx.beginPath();
+            ctx.moveTo(centerX + 2, startY);
+            
+            for (let i = 0; i <= currentHeight; i += 2) {
+                const t = i / height;
+                const x = centerX + Math.sin(t * Math.PI * 2) * (canvasSize * 0.008) + 2;
+                const y = startY - i;
+                ctx.lineTo(x, y);
+            }
+            
+            ctx.stroke();
+        }
+
+        /**
+         * Draw a single leaf with gradient and vein detail
+         */
+        function drawLeaf(x, y, angle, size, progress) {
+            if (progress <= 0) return;
+            
+            const scale = easeOutBack(progress);
+            const rotation = angle + (1 - easeInOutCubic(progress)) * 90;
+            
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(rotation * Math.PI / 180);
+            ctx.scale(scale, scale);
+            
+            const leafWidth = canvasSize * 0.06 * size;
+            const leafHeight = canvasSize * 0.09 * size;
+            
+            // Leaf shadow
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+            ctx.shadowBlur = 8;
+            ctx.shadowOffsetX = 2;
+            ctx.shadowOffsetY = 3;
+            
+            // Leaf body with gradient
+            const leafGrad = ctx.createLinearGradient(-leafWidth/2, 0, leafWidth/2, 0);
+            leafGrad.addColorStop(0, '#2D5016');
+            leafGrad.addColorStop(0.5, '#4A7C2C');
+            leafGrad.addColorStop(1, '#2D5016');
+            
+            ctx.fillStyle = leafGrad;
+            ctx.beginPath();
+            ctx.moveTo(0, -leafHeight);
+            ctx.bezierCurveTo(
+                leafWidth * 0.8, -leafHeight * 0.6,
+                leafWidth * 0.8, leafHeight * 0.2,
+                0, leafHeight
+            );
+            ctx.bezierCurveTo(
+                -leafWidth * 0.8, leafHeight * 0.2,
+                -leafWidth * 0.8, -leafHeight * 0.6,
+                0, -leafHeight
+            );
+            ctx.closePath();
+            ctx.fill();
+            
+            // Reset shadow
+            ctx.shadowColor = 'transparent';
+            
+            // Bold black outline
+            ctx.strokeStyle = '#1a1a1a';
+            ctx.lineWidth = canvasSize * 0.004;
+            ctx.stroke();
+            
+            // Leaf vein
+            ctx.strokeStyle = '#1B3A1A';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(0, -leafHeight);
+            ctx.lineTo(0, leafHeight);
+            ctx.stroke();
+            
+            // Side veins
+            ctx.strokeStyle = 'rgba(27, 58, 26, 0.5)';
+            ctx.lineWidth = 1.5;
+            for (let i = -0.6; i <= 0.6; i += 0.3) {
+                ctx.beginPath();
+                ctx.moveTo(0, leafHeight * i);
+                ctx.lineTo(leafWidth * 0.5, leafHeight * (i + 0.15));
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, leafHeight * i);
+                ctx.lineTo(-leafWidth * 0.5, leafHeight * (i + 0.15));
+                ctx.stroke();
+            }
+            
+            ctx.restore();
+        }
+
+        /**
+         * Draw leaves on the stem
+         */
+        function drawLeaves(progress) {
+            const centerX = canvasSize / 2;
+            const startY = canvasSize * 0.95;
+            
+            // Leaves positioned along the stem with proper connection
+            const leaves = [
+                { 
+                    stemY: canvasSize * 0.70,  // Position on stem
+                    xOffset: -canvasSize * 0.05, 
+                    angle: -50, 
+                    size: 1.0, 
+                    delay: 0 
+                },
+                { 
+                    stemY: canvasSize * 0.60, 
+                    xOffset: canvasSize * 0.06, 
+                    angle: 35, 
+                    size: 0.95, 
+                    delay: 0.3 
+                },
+                { 
+                    stemY: canvasSize * 0.52, 
+                    xOffset: -canvasSize * 0.045, 
+                    angle: -40, 
+                    size: 0.85, 
+                    delay: 0.5 
+                }
+            ];
+
+            leaves.forEach(leaf => {
+                const leafProgress = Math.max(0, Math.min(1, (progress - leaf.delay) / 0.5));
+                // Calculate x position on the curved stem
+                const stemCurveX = centerX + Math.sin((startY - leaf.stemY) / (startY - canvasSize * 0.45) * Math.PI * 2) * (canvasSize * 0.008);
+                const leafX = stemCurveX + leaf.xOffset;
+                drawLeaf(leafX, leaf.stemY, leaf.angle, leaf.size, leafProgress);
+            });
+        }
+
+        /**
+         * Draw a single petal with heart-like circular shape (like reference)
+         */
+        function drawPetal(centerX, centerY, angle, layer, petalIndex, totalPetals, openness) {
+            if (openness <= 0) return;
+            
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.rotate(angle);
+            
+            // Size based on layer - concentric circles getting smaller
+            const sizes = [
+                { radius: 0.18, height: 0.16 },  // Outermost
+                { radius: 0.14, height: 0.13 },  // Second
+                { radius: 0.10, height: 0.09 },  // Third
+                { radius: 0.06, height: 0.055 }  // Innermost
+            ];
+            
+            const size = sizes[layer] || sizes[3];
+            const radius = canvasSize * size.radius * easeOutBack(openness);
+            const height = canvasSize * size.height * easeInOutCubic(openness);
+            
+            // Shadow for depth
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+            ctx.shadowBlur = 10;
+            ctx.shadowOffsetX = 2;
+            ctx.shadowOffsetY = 4;
+            
+            // Gradient - radial from center
+            const gradient = ctx.createRadialGradient(0, height * 0.3, 0, 0, 0, radius * 1.2);
+            gradient.addColorStop(0, '#FF7B7B');
+            gradient.addColorStop(0.3, '#FF5252');
+            gradient.addColorStop(0.6, '#E63946');
+            gradient.addColorStop(0.85, '#D62828');
+            gradient.addColorStop(1, '#B71C1C');
+            
+            ctx.fillStyle = gradient;
+            
+            // Draw rounded petal shape (heart-like curve)
+            ctx.beginPath();
+            ctx.moveTo(0, height);
+            
+            // Left side curve (rounded)
+            ctx.bezierCurveTo(
+                -radius * 0.9, height * 0.5,
+                -radius * 1.0, -height * 0.3,
+                -radius * 0.3, -height * 0.8
+            );
+            
+            // Top left curve (rounded top)
+            ctx.bezierCurveTo(
+                -radius * 0.15, -height * 0.95,
+                radius * 0.15, -height * 0.95,
+                radius * 0.3, -height * 0.8
+            );
+            
+            // Right side curve (rounded)
+            ctx.bezierCurveTo(
+                radius * 1.0, -height * 0.3,
+                radius * 0.9, height * 0.5,
+                0, height
+            );
+            
+            ctx.closePath();
+            ctx.fill();
+            
+            ctx.shadowColor = 'transparent';
+            
+            // Bold black outline
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = canvasSize * 0.006;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.stroke();
+            
+            // Highlight
+            const highlightGrad = ctx.createRadialGradient(
+                radius * 0.2, -height * 0.2, 0,
+                radius * 0.2, -height * 0.2, radius * 0.5
+            );
+            highlightGrad.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
+            highlightGrad.addColorStop(0.5, 'rgba(255, 150, 150, 0.2)');
+            highlightGrad.addColorStop(1, 'transparent');
+            
+            ctx.fillStyle = highlightGrad;
+            ctx.beginPath();
+            ctx.arc(radius * 0.2, -height * 0.2, radius * 0.4, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.restore();
+        }
+
+        /**
+         * Draw the complete rose - concentric circular petals like reference
+         */
+        function drawRose(progress) {
+            const centerX = canvasSize / 2;
+            const centerY = canvasSize * 0.30;
+            
+            // Concentric layers of petals
+            const layers = [
+                { count: 5, offset: 0, delay: 0 },           // Outer ring - 5 petals
+                { count: 5, offset: Math.PI / 5, delay: 0.2 }, // Second ring - 5 petals offset
+                { count: 4, offset: 0, delay: 0.4 },         // Third ring - 4 petals
+                { count: 1, offset: 0, delay: 0.65 }         // Center - 1 small petal/bud
+            ];
+            
+            // Draw glow effect if animation complete
+            if (animationComplete) {
+                const glowSize = 20 + Math.sin(glowPulse) * 8;
+                const glowGradient = ctx.createRadialGradient(
+                    centerX, centerY, 0,
+                    centerX, centerY, canvasSize * 0.25
+                );
+                glowGradient.addColorStop(0, colors.glow);
+                glowGradient.addColorStop(1, 'transparent');
+                
+                ctx.fillStyle = glowGradient;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, canvasSize * 0.25, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // Draw each petal layer in concentric circles
+            layers.forEach((layer, layerIndex) => {
+                const layerProgress = Math.max(0, Math.min(1, (progress - layer.delay) / 0.3));
+                
+                for (let i = 0; i < layer.count; i++) {
+                    const angle = (i / layer.count) * Math.PI * 2 + layer.offset;
+                    const petalProgress = Math.max(0, Math.min(1, 
+                        (layerProgress - (i / layer.count) * 0.15) / 0.85
+                    ));
+                    
+                    drawPetal(centerX, centerY, angle, layerIndex, i, layer.count, petalProgress);
+                }
+            });
+            
+            // Draw dark center spiral/bud
+            if (progress > 0.75) {
+                const centerProgress = Math.min(1, (progress - 0.75) / 0.25);
+                const spiralSize = canvasSize * 0.04 * easeInOutCubic(centerProgress);
+                
+                ctx.save();
+                ctx.translate(centerX, centerY);
+                
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+                ctx.shadowBlur = 8;
+                
+                // Dark red center
+                const centerGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, spiralSize);
+                centerGrad.addColorStop(0, '#4D0000');
+                centerGrad.addColorStop(0.5, '#8B0000');
+                centerGrad.addColorStop(1, '#5D0000');
+                
+                ctx.fillStyle = centerGrad;
+                ctx.beginPath();
+                ctx.arc(0, 0, spiralSize, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.shadowColor = 'transparent';
+                
+                // Black outline
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = canvasSize * 0.004;
+                ctx.stroke();
+                
+                // Small spiral line detail in center
+                ctx.strokeStyle = '#2D0000';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                for (let i = 0; i < 20; i++) {
+                    const angle = (i / 20) * Math.PI * 3;
+                    const radius = (i / 20) * spiralSize * 0.7;
+                    const x = Math.cos(angle) * radius;
+                    const y = Math.sin(angle) * radius;
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+                
+                ctx.restore();
+            }
+        }
+
+        // ============================================
+        // ANIMATION LOOP
+        // ============================================
+        
+        /**
+         * Draw pink sparkles in background
+         */
+        function drawSparkles() {
+            sparkles.forEach(sparkle => {
+                // Update twinkle effect
+                sparkle.twinklePhase += sparkle.twinkleSpeed;
+                const currentOpacity = sparkle.opacity * (0.3 + Math.sin(sparkle.twinklePhase) * 0.7);
+                
+                // Draw sparkle with pink gradient
+                const gradient = ctx.createRadialGradient(
+                    sparkle.x, sparkle.y, 0,
+                    sparkle.x, sparkle.y, sparkle.size * 3
+                );
+                gradient.addColorStop(0, `rgba(255, 182, 193, ${currentOpacity})`);
+                gradient.addColorStop(0.5, `rgba(255, 192, 203, ${currentOpacity * 0.6})`);
+                gradient.addColorStop(1, 'transparent');
+                
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(sparkle.x, sparkle.y, sparkle.size * 3, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Draw bright center
+                ctx.fillStyle = `rgba(255, 255, 255, ${currentOpacity * 0.8})`;
+                ctx.beginPath();
+                ctx.arc(sparkle.x, sparkle.y, sparkle.size * 0.5, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Draw cross sparkle lines
+                if (currentOpacity > sparkle.opacity * 0.7) {
+                    ctx.strokeStyle = `rgba(255, 255, 255, ${currentOpacity * 0.6})`;
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(sparkle.x - sparkle.size * 4, sparkle.y);
+                    ctx.lineTo(sparkle.x + sparkle.size * 4, sparkle.y);
+                    ctx.moveTo(sparkle.x, sparkle.y - sparkle.size * 4);
+                    ctx.lineTo(sparkle.x, sparkle.y + sparkle.size * 4);
+                    ctx.stroke();
+                }
+            });
+        }
+        
+        function animate() {
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw sparkles first (background)
+            drawSparkles();
+            
+            // Calculate normalized progress (0 to 1)
+            const normalizedTime = Math.min(1, time / totalDuration);
+            
+            // Phase 1: Stem grows (0 to 0.25)
+            const stemProgress = Math.min(1, normalizedTime / 0.25);
+            if (stemProgress > 0) {
+                drawStem(stemProgress);
+            }
+            
+            // Phase 2: Leaves unfold (0.2 to 0.5)
+            if (normalizedTime > 0.2) {
+                const leavesProgress = Math.min(1, (normalizedTime - 0.2) / 0.3);
+                drawLeaves(leavesProgress);
+            }
+            
+            // Phase 3: Rose blooms (0.45 to 1.0)
+            if (normalizedTime > 0.45) {
+                const roseProgress = Math.min(1, (normalizedTime - 0.45) / 0.55);
+                drawRose(roseProgress);
+            }
+            
+            // Update animation state
+            if (time < totalDuration) {
+                time++;
+                requestAnimationFrame(animate);
+            } else if (!animationComplete) {
+                animationComplete = true;
+                // Show message with delay
+                setTimeout(() => {
+                    document.getElementById('message').classList.add('show');
+                }, 800);
+                // Continue animation for glow pulse
+                requestAnimationFrame(animateEffects);
+            }
+        }
+
+        /**
+         * Animate post-bloom effects (glow pulse, shine)
+         */
+        function animateEffects() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw sparkles
+            drawSparkles();
+            
+            // Redraw static elements
+            drawStem(1);
+            drawLeaves(1);
+            
+            // Update effects
+            glowPulse += 0.03;
+            shinePosition += 0.008;
+            
+            // Reset shine after completion
+            if (shinePosition > 1.5) {
+                shinePosition = 0;
+            }
+            
+            drawRose(1);
+            
+            requestAnimationFrame(animateEffects);
+        }
+
+        // ============================================
+        // START ANIMATION
+        // ============================================
+        
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                animate();
+            }, 300);
+        });
+    </script>
+</body>
+</html>
